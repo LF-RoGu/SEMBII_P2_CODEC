@@ -21,8 +21,30 @@ static void wm8731_set_callback(void (*callback)(void))
 	NVIC_EnableIRQ(I2S0_Tx_IRQn);
 	NVIC_ClearPendingIRQ(I2S0_Tx_IRQn);
 }
+void I2S0_Tx_IRQHandler(void)
+{
+	if(i2s_callback)
+	{
+		i2s_callback();
+	}
+}
 
+/*!
+ *
+ */
 static void wm8731_write_register (uint8_t reg, uint16_t data);
+/*!
+ *
+ */
+static void i2s_config (void);
+/*!
+ *
+ */
+static void wm8731_start(void);
+/*!
+ *
+ */
+static void wm8732_tx_irq_enable(void);
 
 static void i2s_config (void)
 {
@@ -82,7 +104,7 @@ static void i2s_config (void)
 	/* Init SAI I2S config*/
 	SAI_TxInit(I2S0, &sai_tx_config);
 	/* */
-	SAI_TxSetSerialDataConfig(I2S0,&sai_tx_clock);
+	SAI_TxSetBitClockPolarity(I2S0,sai_tx_clock.bclkPolarity);
 	/* */
 	SAI_TxSetSerialDataConfig(I2S0,&sai_tx_data);
 	/* */
@@ -123,15 +145,15 @@ static void i2s_config (void)
 	};
 
 	/* Init SAI I2S config*/
-	SAI_TxInit(I2S0, &sai_rx_config);
+	SAI_RxInit(I2S0, &sai_rx_config);
 	/* */
-	SAI_TxSetSerialDataConfig(I2S0,&sai_rx_clock);
+	SAI_RxSetBitClockPolarity(I2S0,sai_rx_clock.bclkPolarity);
 	/* */
-	SAI_TxSetSerialDataConfig(I2S0,&sai_rx_data);
+	SAI_RxSetSerialDataConfig(I2S0,&sai_rx_data);
 	/* */
-	SAI_TxSetFifoConfig(I2S0, &sai_rx_fifo_config);
+	SAI_RxSetFifoConfig(I2S0, &sai_rx_fifo_config);
 	/* */
-	SAI_TxSetChannelFIFOMask(I2S0, bit_3);
+	SAI_RxSetChannelFIFOMask(I2S0, bit_3);
 }
 
 void wm8731_init(rtos_i2c_config_t config, uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8_t sampling_rate, void (*handler_i2s)(void))
@@ -210,12 +232,4 @@ static void wm8731_start(void)
 static void wm8732_tx_irq_enable(void)
 {
 	I2S0->TCSR |= I2S_TCSR_FRIE_MASK;
-}
-
-void I2S0_Tx_IRQHandler(void)
-{
-	if(i2s_callback)
-	{
-		i2s_callback();
-	}
 }

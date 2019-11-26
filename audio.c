@@ -16,31 +16,17 @@ static struct
 	SemaphoreHandle_t init_end;
 } audio_handle = {0};
 
+/*!
+ *
+ */
 static void audio_config (void * arg);
-
+/*!
+ *
+ */
 static void audio_get_data(void * arg);
-
-void audio_init (void)
-{
-	i2c_config.SCL_pin = 24;
-	i2c_config.SDA_pin = 25;
-	i2c_config.baudrate = 100000;
-	i2c_config.i2c_number = rtos_i2c_0;
-	i2c_config.pin_mux = kPORT_MuxAlt5;
-	i2c_config.port = rtos_i2c_portE;
-
-    audio_handle.init_end = xSemaphoreCreateBinary();
-
-    xTaskCreate(audio_config, "audo config", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
-    xTaskCreate(audio_get_data, "audio get data", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
-
-    vTaskStartScheduler();
-
-	while(1)
-	{
-
-	}
-}
+/**********************************************************/
+/**********************************************************/
+/**********************************************************/
 
 static void audio_config (void * arg)
 {
@@ -59,6 +45,32 @@ static void audio_get_data (void * arg)
 	xSemaphoreTake(audio_handle.init_end, portMAX_DELAY);
 
 	while (1)
+	{
+
+	}
+}
+
+/**********************************************************/
+/**********************************************************/
+/**********************************************************/
+
+void audio_init (void)
+{
+	i2c_config.SCL_pin = 24;
+	i2c_config.SDA_pin = 25;
+	i2c_config.baudrate = 100000;
+	i2c_config.i2c_number = rtos_i2c_0;
+	i2c_config.pin_mux = kPORT_MuxAlt5;
+	i2c_config.port = rtos_i2c_portE;
+
+    audio_handle.init_end = xSemaphoreCreateBinary();
+
+    xTaskCreate(audio_config, "audio_config", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+    xTaskCreate(audio_get_data, "audio_get_data", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
+
+    vTaskStartScheduler();
+
+	while(1)
 	{
 
 	}
