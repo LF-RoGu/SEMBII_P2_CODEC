@@ -56,8 +56,8 @@ static void audio_get_data (void * arg)
 
 void audio_init (void)
 {
-	i2c_config.SCL_pin = 24;
-	i2c_config.SDA_pin = 25;
+	i2c_config.SCL_pin = bit_24;
+	i2c_config.SDA_pin = bit_25;
 	i2c_config.baudrate = 100000;
 	i2c_config.i2c_number = rtos_i2c_0;
 	i2c_config.pin_mux = kPORT_MuxAlt5;

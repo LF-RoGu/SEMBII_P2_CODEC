@@ -21,6 +21,7 @@ static void wm8731_set_callback(void (*callback)(void))
 	NVIC_EnableIRQ(I2S0_Tx_IRQn);
 	NVIC_ClearPendingIRQ(I2S0_Tx_IRQn);
 }
+
 void I2S0_Tx_IRQHandler(void)
 {
 	if(i2s_callback)
@@ -156,6 +157,60 @@ static void i2s_config (void)
 	SAI_RxSetChannelFIFOMask(I2S0, bit_3);
 }
 
+static void wm8731_write_register (uint8_t reg, uint16_t data)
+{
+	uint8_t address;
+	uint8_t buffer;
+
+	/* delay */
+	vTaskDelay(pdMS_TO_TICKS(bit_10));
+
+	address = reg << bit_1;
+	address = address | (Hi(data) & bit_1);
+
+	buffer = Lo(data);
+
+	rtos_i2c_transfer(
+		wm8731_handle.config.i2c_number,
+		&buffer,
+		bit_1,
+		wm8731_handle.slave_address,
+		address,
+		bit_1
+	);
+}
+
+static void wm8731_start(void)
+{
+	/*
+	 * TCSR
+	 * Transmit Control SAI Register
+	 */
+	/* FIFO Reset*/
+	I2S0->TCSR |= I2S_TCSR_FR_MASK;
+	/* Transmit Enable*/
+	I2S0->TCSR |= I2S_TCSR_TE_MASK;
+	/*
+	 * RCSR
+	 * Receive Control SAI Register
+	 */
+	/* FIFO Reset*/
+	I2S0->RCSR |= I2S_TCSR_FR_MASK;
+	/* Transmit Enable*/
+	I2S0->RCSR |= I2S_TCSR_TE_MASK;
+}
+
+static void wm8732_tx_irq_enable(void)
+{
+	/*
+	 * TCSR
+	 * Transmit Control SAI Register
+	 */
+	I2S0->TCSR |= I2S_TCSR_FRIE_MASK;
+}
+/**********************************************************/
+/**********************************************************/
+/**********************************************************/
 void wm8731_init(rtos_i2c_config_t config, uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8_t sampling_rate, void (*handler_i2s)(void))
 {
 	wm8731_handle.slave_address = slave_address;
@@ -198,38 +253,21 @@ void wm8731_init(rtos_i2c_config_t config, uint8_t slave_address, uint8_t mode, 
 	wm8731_write_register(WM8731_REG_ACTIVE_CTRL, WM8731_ACTIVATE);
 }
 
-static void wm8731_write_register (uint8_t reg, uint16_t data)
+void wm8731_tx(uint32_t left_channel, uint32_t right_channel)
 {
-	uint8_t address;
-	uint8_t buffer;
-
-	/* delay */
-	vTaskDelay(pdMS_TO_TICKS(10));
-
-	address = reg << 1;
-	address = address | (Hi(data) & 1);
-
-	buffer = Lo(data);
-
-	rtos_i2c_transfer(
-		wm8731_handle.config.i2c_number,
-		&buffer,
-		1,
-		wm8731_handle.slave_address,
-		address,
-		1
-	);
+	/*
+	 * TDR
+	 * Transmit Data Register
+	 */
+	I2S0->TDR[0] = left_channel;
+	I2S0->TDR[1] = right_channel;
 }
-
-static void wm8731_start(void)
+void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel)
 {
-	I2S0->TCSR |= I2S_TCSR_FR_MASK;
-	I2S0->TCSR |= I2S_TCSR_TE_MASK;
-	I2S0->RCSR |= I2S_TCSR_FR_MASK;
-	I2S0->RCSR |= I2S_TCSR_TE_MASK;
-}
-
-static void wm8732_tx_irq_enable(void)
-{
-	I2S0->TCSR |= I2S_TCSR_FRIE_MASK;
+	/*
+	 * RDR
+	 * Receive Data Register
+	 */
+	*left_channel = I2S0->RDR[0];
+	*right_channel = I2S0->RDR[1];
 }
