@@ -80,9 +80,15 @@ rtos_i2c_flag_t rtos_i2c_init(rtos_i2c_config_t config)
 	i2c_master_config_t fsl_config;
 
 	port_pin_config_t config_i2c =
-	{ kPORT_PullUp, kPORT_SlowSlewRate, kPORT_PassiveFilterDisable,
-			kPORT_OpenDrainDisable, kPORT_LowDriveStrength, kPORT_MuxAlt5,
-			kPORT_UnlockRegister, };
+	{
+			kPORT_PullUp,
+			kPORT_SlowSlewRate,
+			kPORT_PassiveFilterDisable,
+			kPORT_OpenDrainDisable,
+			kPORT_LowDriveStrength,
+			kPORT_MuxAlt5,
+			kPORT_UnlockRegister,
+	};
 
 	/**Checks if configuration corresponds to existing port*/
 	if(config.i2c_number < NUMBER_OF_SERIAL_PORTS)

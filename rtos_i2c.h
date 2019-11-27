@@ -8,6 +8,8 @@
 typedef enum {rtos_i2c_0, rtos_i2c_1, rtos_i2c_2} rtos_i2c_number_t;
 typedef enum {rtos_i2c_portA,rtos_i2c_portB,rtos_i2c_portC,rtos_i2c_portD,rtos_i2c_portE} rtos_i2c_port_t;
 typedef enum {rtos_i2c_sucess,rtos_i2c_fail} rtos_i2c_flag_t;
+typedef enum {rtos_mux_alt0,rtos_mux_alt1,rtos_mux_alt2,rtos_mux_alt3,rtos_mux_alt4,rtos_mux_alt05,rtos_mux_alt6,rtos_mux_alt7}rtos_i2c_mux_t;
+
 typedef struct
 {
 	uint32_t  baudrate;				/**I2C Baud rate*/

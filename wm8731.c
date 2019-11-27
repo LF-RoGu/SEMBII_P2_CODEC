@@ -5,49 +5,13 @@
 #include "task.h"
 #include "fsl_sai.h"
 
-/*CALLBACKS ptr*/
-static void (*i2s_callback)(void) = 0;
 
 static struct
 {
 	uint8_t slave_address;
-	rtos_i2c_config_t config;
 } wm8731_handle = {0};
 
-static void wm8731_set_callback(void (*callback)(void))
-{
-	i2s_callback = callback;
-
-	NVIC_EnableIRQ(I2S0_Tx_IRQn);
-	NVIC_ClearPendingIRQ(I2S0_Tx_IRQn);
-}
-
-void I2S0_Tx_IRQHandler(void)
-{
-	if(i2s_callback)
-	{
-		i2s_callback();
-	}
-}
-
-/*!
- *
- */
-static void wm8731_write_register (uint8_t reg, uint16_t data);
-/*!
- *
- */
-static void i2s_config (void);
-/*!
- *
- */
-static void wm8731_start(void);
-/*!
- *
- */
-static void wm8732_tx_irq_enable(void);
-
-static void i2s_config (void)
+void i2s_config (void)
 {
 	/*
 	 * Enable clock for I2S
@@ -157,7 +121,7 @@ static void i2s_config (void)
 	SAI_RxSetChannelFIFOMask(I2S0, bit_3);
 }
 
-static void wm8731_write_register (uint8_t reg, uint16_t data)
+void wm8731_write_register (uint8_t reg, uint16_t data)
 {
 	uint8_t address;
 	uint8_t buffer;
@@ -171,7 +135,7 @@ static void wm8731_write_register (uint8_t reg, uint16_t data)
 	buffer = Lo(data);
 
 	rtos_i2c_transfer(
-		wm8731_handle.config.i2c_number,
+		rtos_i2c_0,
 		&buffer,
 		bit_1,
 		wm8731_handle.slave_address,
@@ -180,7 +144,7 @@ static void wm8731_write_register (uint8_t reg, uint16_t data)
 	);
 }
 
-static void wm8731_start(void)
+void wm8731_start(void)
 {
 	/*
 	 * TCSR
@@ -200,7 +164,7 @@ static void wm8731_start(void)
 	I2S0->RCSR |= I2S_TCSR_TE_MASK;
 }
 
-static void wm8732_tx_irq_enable(void)
+void wm8732_tx_irq_enable(void)
 {
 	/*
 	 * TCSR
@@ -211,14 +175,10 @@ static void wm8732_tx_irq_enable(void)
 /**********************************************************/
 /**********************************************************/
 /**********************************************************/
-void wm8731_init(rtos_i2c_config_t config, uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8_t sampling_rate, void (*handler_i2s)(void))
+void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8_t sampling_rate, void (*handler_i2s)(void))
 {
 	wm8731_handle.slave_address = slave_address;
-	wm8731_handle.config = config;
 
-	rtos_i2c_init(config);
-
-	vTaskDelay(pdMS_TO_TICKS(100));
 	/* Reset module */
 	/*register 0xF = 1111b
 	 * 0 to reset*/

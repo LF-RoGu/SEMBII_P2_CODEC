@@ -12,6 +12,10 @@
 #include "rtos_i2c.h"
 #include "stdint.h"
 #include "bits.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "fsl_port.h"
 
 /* The address of the codec is set by the state of the CSB pin */
 #define WM8731_DEVICE_ADDRESS   0x1a    // 0011_010
@@ -49,7 +53,37 @@
 
 #define Hi(param) ((char *)&param)[1]
 
-void wm8731_init(rtos_i2c_config_t config, uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8_t sampling_rate, void (*handler_i2s)(void));
+/*!
+ *
+ */
+void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8_t sampling_rate, void (*handler_i2s)(void));
+/*!
+ *
+ */
+void wm8731_tx(uint32_t left_channel, uint32_t right_channel);
+/*!
+ *
+ */
+void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel);
+/*****************************************************************/
+/*****************************************************************/
+/*****************************************************************/
+/*!
+ *
+ */
+void wm8731_write_register (uint8_t reg, uint16_t data);
+/*!
+ *
+ */
+void i2s_config (void);
+/*!
+ *
+ */
+void wm8731_start(void);
+/*!
+ *
+ */
+void wm8732_tx_irq_enable(void);
 
 #endif // wm8731_H
 

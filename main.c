@@ -39,9 +39,17 @@
 #include "clock_config.h"
 #include "MK64F12.h"
 #include "fsl_debug_console.h"
+/**/
+#include "audio.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "fsl_port.h"
+#include "rtos_i2c.h"
+#include "wm8731.h"
+#include "audio.h"
 
 /* TODO: insert other include files here. */
-#include "audio.h"
 
 /* TODO: insert other definitions and declarations here. */
 
@@ -59,16 +67,37 @@ int main(void) {
 
     PRINTF("Hello World\n");
 
-    audio_init();
+    /*
+     * Config i2c & uart with RTOS
+     */
+    /**/
+    rtos_i2c_config_t i2c_main_config_t;
 
-    /* Force the counter to be placed into memory. */
-    volatile static int i = 0 ;
-    /* Enter an infinite loop, just incrementing a counter. */
-    while(1) {
-        i++ ;
-        /* 'Dummy' NOP to allow source level single stepping of
-            tight while() loop */
-        __asm volatile ("nop");
+    i2c_main_config_t.baudrate = 100000;
+    i2c_main_config_t.i2c_number = rtos_i2c_0;
+    i2c_main_config_t.port = rtos_i2c_portE;
+    i2c_main_config_t.SDA_pin = bit_25;
+    i2c_main_config_t.SCL_pin = bit_24;
+    i2c_main_config_t.pin_mux = rtos_mux_alt05;
+
+    rtos_i2c_init(i2c_main_config_t);
+
+    /* I2S*/
+    i2s_config();
+
+    /* Task scheduler*/
+    audio_handle.init_end = xSemaphoreCreateBinary();
+
+    xTaskCreate(audio_config, "audio_config", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
+    xTaskCreate(audio_bypass_receive, "audio_bypass_receive", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
+    xTaskCreate(audio_bypass_send, "audio_bypass_send", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-3, NULL);
+    vTaskStartScheduler();
+
+    while(1)
+    {
+    	/*
+    	 * Do Nothing
+    	 */
     }
     return 0 ;
 }

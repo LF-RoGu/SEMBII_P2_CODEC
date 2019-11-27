@@ -6,6 +6,12 @@
 
 #include "MK64F12.h"
 #include "stdint.h"
+#include "FreeRTOS.h"
+#include "task.h"
+#include "semphr.h"
+#include "fsl_port.h"
+#include "rtos_i2c.h"
+#include "wm8731.h"
 
 /** This enum describes the different input setup of the CODEC */
 typedef enum {
@@ -26,7 +32,27 @@ typedef enum {
     INTR = 0x00,  // User I2S interruptions to controll the flow of the program (generate interruption when  irq_depth=<FIFO level)
 	DMA = 0x01,   // Use DMA requests to controll the flow of the program (generat a request whem dma_depth=<FIFO level)
 } mode;
+/*
+ *  Semaphore
+ */
 
-void audio_init (void);
+static struct
+{
+	SemaphoreHandle_t init_end;
+} audio_handle = {0};
+
+
+/*!
+ *
+ */
+void audio_config (void * arg);
+/*!
+ *
+ */
+void audio_bypass_receive(void);
+/*!
+ *
+ */
+void audio_bypass_send(void);
 
 #endif // audio_H
