@@ -219,38 +219,61 @@ void wm8731_init(rtos_i2c_config_t config, uint8_t slave_address, uint8_t mode, 
 	rtos_i2c_init(config);
 
 	vTaskDelay(pdMS_TO_TICKS(100));
-
 	/* Reset module */
+	/*register 0xF = 1111b
+	 * 0 to reset*/
 	wm8731_write_register(WM8731_REG_RESET, WM8731_RESET);
 
 	/* Left line in settings */
+	/*register line in 0 to LEFT input
+	 *line in left value default 10111 = 0117h */
 	wm8731_write_register(WM8731_REG_LLINE_IN, WM8731_LINE_IN_LEFT);
 
 	/* Rigth line in settings */
+	/*register line in 1 to RIGHT input
+	 *line in right value default 10111 = 0117h solo volumen*/
 	wm8731_write_register(WM8731_REG_RLINE_IN, WM8731_LINE_IN_RIGHT);
 
 	/* Left headphone out settings */
+	/*register left headphone output 0010b = 0x02
+	 * value for default 1111001b = 0x017C*/
 	wm8731_write_register(WM8731_REG_LHPHONE_OUT, WM8731_HP_LEFT);
 
 	/* Right headphone out settings */
+	/*register left headphone output 0011b = 0x03
+	 * value for default 1111001b = 0x017C*/
 	wm8731_write_register(WM8731_REG_RHPHONE_OUT, WM8731_HP_RIGHT);
 
 	/* Analog paths */
+	/*register 0100b = 0x04
+	 * Line Input Mute to ADC  = 8*/
 	wm8731_write_register(WM8731_REG_ANALOG_PATH, WM8731_ANALOG_AUDIO_BYPASS);
 
 	/* Digital paths */
+	/*register 0101b = 0x05
+	* ADC High Pass Filter Enable  = 0*/
 	wm8731_write_register(WM8731_REG_DIGITAL_PATH, WM8731_DIGITAL_AUDIO);
 
 	/* Power down control */
+	/*register 0101b = 0x06
+	* Line Input Power Down   = 0*/
 	wm8731_write_register(WM8731_REG_PDOWN_CTRL, WM8731_POWER_MODE);
 
 	/* Digital interface */
+	/*register 0101b = 0x07
+	* Line Input Power Down  = 0*/
 	wm8731_write_register(WM8731_REG_DIGITAL_IF, WM8731_DA_INTERFACE);
 
 	/* Sampling control */
+	/*register 1000b = 0x08
+	* CLKOUT divider select divided by 2   = 0*/
 	wm8731_write_register(WM8731_REG_SAMPLING_CTRL, WM8731_SAMPLING);
 
+	/* Active control */
+	/*register 1001b = 0x09
+	* CLKOUT divider select divided by 2   = 0*/
 	wm8731_write_register(WM8731_REG_ACTIVE_CTRL, WM8731_ACTIVATE);
+
 }
 
 void wm8731_tx(uint32_t left_channel, uint32_t right_channel)
