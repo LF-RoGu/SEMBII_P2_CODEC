@@ -45,6 +45,7 @@
 #define WM8731_DIGITAL_AUDIO		0x0000
 #define WM8731_POWER_MODE			0x0000 // Disable Power down
 #define WM8731_DA_INTERFACE			0x0053 // Enable Master Mode and 32bit data
+#define WM8731_DB_INTERFACE			0x0043 // Enable Master Mode and 32bit data
 #define WM8731_SAMPLING				0x0000 // 48kHz, MCLK=12.288MHz
 #define WM8731_ACTIVATE				0x0001 // Module is ON
 #define WM8731_DEACTIVATE			0x0000 // Module is OFF
@@ -75,7 +76,7 @@ void wm8731_write_register (uint8_t reg, uint16_t data);
 /*!
  *
  */
-void i2s_config (void);
+void rtos_sai_i2s_config (void);
 /*!
  *
  */
@@ -84,6 +85,21 @@ void wm8731_start(void);
  *
  */
 void wm8732_tx_irq_enable(void);
+/*!
+ *
+ */
+void wm8732_rx_irq_enable(void);
+/*
+ * CALLBACK
+ */
+/*!
+ *
+ */
+void wm8731_rx_callback(void (*handler)(void * arg));
+/*!
+ *
+ */
+void wm8731_tx_callback(void (*handler)(void * arg));
 
 #endif // wm8731_H
 

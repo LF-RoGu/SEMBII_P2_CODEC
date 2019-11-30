@@ -83,14 +83,14 @@ int main(void) {
     rtos_i2c_init(i2c_main_config_t);
 
     /* I2S*/
-    i2s_config();
+    rtos_sai_i2s_config();
 
     /* Task scheduler*/
     audio_handle.init_end = xSemaphoreCreateBinary();
 
     xTaskCreate(audio_config, "audio_config", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
-    xTaskCreate(audio_bypass_receive, "audio_bypass_receive", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
-    xTaskCreate(audio_bypass_send, "audio_bypass_send", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-3, NULL);
+    //xTaskCreate(audio_bypass_receive, "audio_bypass_receive", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
+
     vTaskStartScheduler();
 
     while(1)

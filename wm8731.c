@@ -5,13 +5,49 @@
 #include "task.h"
 #include "fsl_sai.h"
 
-
 static struct
 {
 	uint8_t slave_address;
+	rtos_i2c_config_t config;
 } wm8731_handle = {0};
 
-void i2s_config (void)
+/*CALLBACKS ptr*/
+static void (*i2s_tx_callback)(void) = 0;
+static void (*i2s_rx_callback)(void) = 0;
+
+/* ISR*/
+void I2S0_Tx_IRQHandler(void)
+{
+	if(i2s_tx_callback)
+	{
+		i2s_tx_callback();
+	}
+}
+void I2S0_Rx_IRQHandler(void)
+{
+	if(i2s_rx_callback)
+	{
+		i2s_rx_callback();
+	}
+}
+
+/* CALLBACK*/
+void wm8731_tx_callback(void (*handler)(void * arg))
+{
+	i2s_tx_callback = handler;
+
+	NVIC_EnableIRQ(I2S0_Tx_IRQn);
+	NVIC_ClearPendingIRQ(I2S0_Tx_IRQn);
+}
+void wm8731_rx_callback(void (*handler)(void * arg))
+{
+	i2s_rx_callback = handler;
+
+	NVIC_EnableIRQ(I2S0_Rx_IRQn);
+	NVIC_ClearPendingIRQ(I2S0_Rx_IRQn);
+}
+
+void rtos_sai_i2s_config (void)
 {
 	/*
 	 * Enable clock for I2S
@@ -39,7 +75,7 @@ void i2s_config (void)
 	 */
 	sai_config_t sai_tx_config =
 	{
-			.protocol = kSAI_BusPCMA,
+			.protocol = kSAI_BusPCMB,
 			.syncMode = kSAI_ModeSync,
 			.mclkOutputEnable = FALSE,
 			.mclkSource = kSAI_MclkSourceSysclk,
@@ -49,7 +85,7 @@ void i2s_config (void)
 	{
 			.bclkSrcSwap = TRUE,
 			.bclkInputDelay = FALSE,
-			.bclkPolarity = kSAI_PolarityActiveLow,
+			.bclkPolarity = kSAI_PolarityActiveHigh,
 			.bclkSource = kSAI_BclkSourceBusclk,
 	};
 	sai_serial_data_t sai_tx_data =
@@ -82,7 +118,7 @@ void i2s_config (void)
 	 */
 	sai_config_t sai_rx_config =
 	{
-			.protocol = kSAI_BusPCMA,
+			.protocol = kSAI_BusPCMB,
 			.syncMode = kSAI_ModeSync,
 			.mclkOutputEnable = FALSE,
 			.mclkSource = kSAI_MclkSourceSysclk,
@@ -92,7 +128,7 @@ void i2s_config (void)
 	{
 			.bclkSrcSwap = FALSE,
 			.bclkInputDelay = FALSE,
-			.bclkPolarity = kSAI_PolarityActiveLow,
+			.bclkPolarity = kSAI_PolarityActiveHigh,
 			.bclkSource = kSAI_BclkSourceBusclk,
 	};
 	sai_serial_data_t sai_rx_data =
@@ -106,7 +142,7 @@ void i2s_config (void)
 	};
 	sai_fifo_t sai_rx_fifo_config =
 	{
-			.fifoWatermark = bit_0,
+			.fifoWatermark = bit_1,
 	};
 
 	/* Init SAI I2S config*/
@@ -126,9 +162,6 @@ void wm8731_write_register (uint8_t reg, uint16_t data)
 	uint8_t address;
 	uint8_t buffer;
 
-	/* delay */
-	vTaskDelay(pdMS_TO_TICKS(bit_10));
-
 	address = reg << bit_1;
 	address = address | (Hi(data) & bit_1);
 
@@ -138,7 +171,7 @@ void wm8731_write_register (uint8_t reg, uint16_t data)
 		rtos_i2c_0,
 		&buffer,
 		bit_1,
-		wm8731_handle.slave_address,
+		WM8731_DEVICE_ADDRESS,
 		address,
 		bit_1
 	);
@@ -150,18 +183,14 @@ void wm8731_start(void)
 	 * TCSR
 	 * Transmit Control SAI Register
 	 */
-	/* FIFO Reset*/
-	I2S0->TCSR |= I2S_TCSR_FR_MASK;
-	/* Transmit Enable*/
-	I2S0->TCSR |= I2S_TCSR_TE_MASK;
+	/* FIFO Reset*/ /* Transmit Enable*/
+	I2S0->TCSR |= (I2S_TCSR_FR_MASK | I2S_TCSR_TE_MASK);
 	/*
 	 * RCSR
 	 * Receive Control SAI Register
 	 */
-	/* FIFO Reset*/
-	I2S0->RCSR |= I2S_TCSR_FR_MASK;
-	/* Transmit Enable*/
-	I2S0->RCSR |= I2S_TCSR_TE_MASK;
+	/* FIFO Reset*/ /* Transmit Enable*/
+	I2S0->RCSR |= (I2S_RCSR_FR_MASK | I2S_RCSR_RE_MASK);
 }
 
 void wm8732_tx_irq_enable(void)
@@ -171,6 +200,14 @@ void wm8732_tx_irq_enable(void)
 	 * Transmit Control SAI Register
 	 */
 	I2S0->TCSR |= I2S_TCSR_FRIE_MASK;
+}
+void wm8732_rx_irq_enable(void)
+{
+	/*
+	 * RCSR
+	 * Receive Control SAI Register
+	 */
+	I2S0->RCSR |= I2S_RCSR_FRIE_MASK;
 }
 /**********************************************************/
 /**********************************************************/
@@ -222,7 +259,7 @@ void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8
 	/* Digital interface */
 	/*register 0101b = 0x07
 	* Line Input Power Down  = 0*/
-	wm8731_write_register(WM8731_REG_DIGITAL_IF, WM8731_DA_INTERFACE);
+	wm8731_write_register(WM8731_REG_DIGITAL_IF, WM8731_DB_INTERFACE);
 
 	/* Sampling control */
 	/*register 1000b = 0x08

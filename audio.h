@@ -39,6 +39,8 @@ typedef enum {
 static struct
 {
 	SemaphoreHandle_t init_end;
+	SemaphoreHandle_t rx_end;
+	SemaphoreHandle_t tx_end;
 } audio_handle = {0};
 
 
@@ -49,10 +51,10 @@ void audio_config (void * arg);
 /*!
  *
  */
-void audio_bypass_receive(void);
+void audio_bypass_receive(void * arg);
 /*!
  *
  */
-void audio_bypass_send(void);
+void audio_bypass_send(void * arg);
 
 #endif // audio_H
