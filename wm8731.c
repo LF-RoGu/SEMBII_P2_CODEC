@@ -5,6 +5,10 @@
 #include "task.h"
 #include "fsl_sai.h"
 
+static void WM8731_soft_reset(void);
+static void WM8731_config_digital_interface(wm8731_sampling_control_t *config_di);
+static void WM8731_config_sampling_control(wm8731_sampling_control_t *config_sc);
+
 static struct
 {
 	uint8_t slave_address;
@@ -49,9 +53,7 @@ void wm8731_rx_callback(void (*handler)(void * arg))
 
 void rtos_sai_i2s_config (void)
 {
-	/*
-	 * Enable clock for I2S
-	 */
+	/*  Enable clockgating */
 	CLOCK_EnableClock(kCLOCK_PortC);
 	CLOCK_EnableClock(kCLOCK_Sai0);
 
@@ -68,38 +70,38 @@ void rtos_sai_i2s_config (void)
 	PORTC->PCR[bit_7] = PORT_PCR_MUX(bit_4);
 
 	/*
-	 * Sai config
-	 */
-	/*
 	 * TX
 	 */
 	sai_config_t sai_tx_config =
 	{
-			.protocol = kSAI_BusPCMB,
-			.syncMode = kSAI_ModeSync,
-			.mclkOutputEnable = FALSE,
-			.mclkSource = kSAI_MclkSourceSysclk,
-			.masterSlave = kSAI_Slave,
+		.protocol = kSAI_BusPCMB,
+		.syncMode = kSAI_ModeAsync,
+		.mclkOutputEnable = FALSE,
+		.mclkSource = kSAI_MclkSourceSysclk,
+		.masterSlave = kSAI_Slave,
 	};
+
 	sai_bit_clock_t sai_tx_clock =
 	{
-			.bclkSrcSwap = TRUE,
-			.bclkInputDelay = FALSE,
-			.bclkPolarity = kSAI_PolarityActiveHigh,
-			.bclkSource = kSAI_BclkSourceBusclk,
+		.bclkSrcSwap = TRUE,
+		.bclkInputDelay = FALSE,
+		.bclkPolarity = kSAI_PolarityActiveHigh,
+		.bclkSource = kSAI_BclkSourceBusclk,
 	};
+
 	sai_serial_data_t sai_tx_data =
 	{
-			.dataOrder = kSAI_DataMSB,
-			.dataWord0Length = bit_32,
-			.dataWordNLength = bit_32,
-			.dataWordLength = bit_32,
-			.dataWordNum = bit_2,
-			.dataMaskedWord = bit_0,
+		.dataOrder = kSAI_DataMSB,
+		.dataWord0Length = bit_32,
+		.dataWordNLength = bit_32,
+		.dataWordLength = bit_32,
+		.dataWordNum = bit_2,
+		.dataMaskedWord = bit_0,
 	};
+
 	sai_fifo_t sai_tx_fifo_config =
 	{
-			.fifoWatermark = bit_1,
+		.fifoWatermark = bit_1,
 	};
 
 	/* Init SAI I2S config*/
@@ -118,39 +120,44 @@ void rtos_sai_i2s_config (void)
 	 */
 	sai_config_t sai_rx_config =
 	{
-			.protocol = kSAI_BusPCMB,
-			.syncMode = kSAI_ModeSync,
-			.mclkOutputEnable = FALSE,
-			.mclkSource = kSAI_MclkSourceSysclk,
-			.masterSlave = kSAI_Slave,
+		.protocol = kSAI_BusPCMB,   /*!rising edge syncronization*/
+		.syncMode = kSAI_ModeSync,  /*!synchronous mode*/
+		.mclkOutputEnable = FALSE,  /*!< Master clock output enable, true means master clock divider enabled */
+		//.mclkSource = kSAI_MclkSourceSysclk,
+		.masterSlave = kSAI_Slave,
+		.bclkSource = kSAI_BclkSourceMclkDiv,
+
 	};
+
 	sai_bit_clock_t sai_rx_clock =
 	{
-			.bclkSrcSwap = FALSE,
-			.bclkInputDelay = FALSE,
-			.bclkPolarity = kSAI_PolarityActiveHigh,
-			.bclkSource = kSAI_BclkSourceBusclk,
+		.bclkSrcSwap = T,
+		.bclkInputDelay = FALSE,
+		.bclkPolarity = kSAI_PolarityActiveHigh,
+		.bclkSource = kSAI_BclkSourceBusclk,
 	};
+
 	sai_serial_data_t sai_rx_data =
 	{
-			.dataOrder = kSAI_DataMSB,
-			.dataWord0Length = bit_32,
-			.dataWordNLength = bit_32,
-			.dataWordLength = bit_32,
-			.dataWordNum = bit_2,
-			.dataMaskedWord = bit_0,
+		.dataOrder = kSAI_DataMSB,
+		.dataWord0Length = bit_32,
+		.dataWordNLength = bit_32,
+		.dataWordLength = bit_32,
+		.dataWordNum = bit_2,
+		.dataMaskedWord = bit_0,
 	};
+
 	sai_fifo_t sai_rx_fifo_config =
 	{
-			.fifoWatermark = bit_1,
+		.fifoWatermark = bit_1,
 	};
 
 	/* Init SAI I2S config*/
 	SAI_RxInit(I2S0, &sai_rx_config);
+
+	SAI_RxSetBitClockPolarity(I2S0, sai_rx_clock.bclkPolarity);
 	/* */
-	SAI_RxSetBitClockPolarity(I2S0,sai_rx_clock.bclkPolarity);
-	/* */
-	SAI_RxSetSerialDataConfig(I2S0,&sai_rx_data);
+	SAI_RxSetSerialDataConfig(I2S0, &sai_rx_data);
 	/* */
 	SAI_RxSetFifoConfig(I2S0, &sai_rx_fifo_config);
 	/* */
@@ -214,22 +221,24 @@ void wm8732_rx_irq_enable(void)
 /**********************************************************/
 void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8_t sampling_rate, void (*handler_i2s)(void))
 {
+	wm8731_sampling_control_t config_sc =
+	{
+		NORMAL_MODE,      /* the MCLK is set up according to the desire sample rate */
+		fs_256,			  /* rate which digital signal processing is carried out at  (256 frames per second)*/
+		SC_ADC_DAC_48KHZ  /* set ADC's & DAC's sampling rate @48 kHZ */
+	};
+
+
 	wm8731_handle.slave_address = slave_address;
 
-	/* Reset module */
-	/*register 0xF = 1111b
-	 * 0 to reset*/
-	wm8731_write_register(WM8731_REG_RESET, WM8731_RESET);
+	/* generate a soft reset */
+	W8731_soft_reset();
 
-	/* Left line in settings */
-	/*register line in 0 to LEFT input
-	 *line in left value default 10111 = 0117h */
-	wm8731_write_register(WM8731_REG_LLINE_IN, WM8731_LINE_IN_LEFT);
+	/* configure left channel line input*/
+	WM8731_config_left_channel_line_input();
 
-	/* Rigth line in settings */
-	/*register line in 1 to RIGHT input
-	 *line in right value default 10111 = 0117h solo volumen*/
-	wm8731_write_register(WM8731_REG_RLINE_IN, WM8731_LINE_IN_RIGHT);
+	/* configure right channel line input*/
+	WM8731_config_right_channel_line_input();
 
 	/* Left headphone out settings */
 	/*register left headphone output 0010b = 0x02
@@ -244,12 +253,11 @@ void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8
 	/* Analog paths */
 	/*register 0100b = 0x04
 	 * Line Input Mute to ADC  = 8*/
-	wm8731_write_register(WM8731_REG_ANALOG_PATH, WM8731_ANALOG_AUDIO_BYPASS);
+	//wm8731_write_register(WM8731_REG_ANALOG_PATH, WM8731_ANALOG_AUDIO_BYPASS);
 
-	/* Digital paths */
-	/*register 0101b = 0x05
-	* ADC High Pass Filter Enable  = 0*/
-	wm8731_write_register(WM8731_REG_DIGITAL_PATH, WM8731_DIGITAL_AUDIO);
+	/* configure digital interface */
+	wm8731_write_register(WM8731_REG_DIGITAL_PATH, WM8731_DIGITAL_INT_CONF);
+	//WM8731_config_digital_interface(wm8731_sampling_control_t *config_di)
 
 	/* Power down control */
 	/*register 0101b = 0x06
@@ -261,10 +269,8 @@ void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8
 	* Line Input Power Down  = 0*/
 	wm8731_write_register(WM8731_REG_DIGITAL_IF, WM8731_DB_INTERFACE);
 
-	/* Sampling control */
-	/*register 1000b = 0x08
-	* CLKOUT divider select divided by 2   = 0*/
-	wm8731_write_register(WM8731_REG_SAMPLING_CTRL, WM8731_SAMPLING);
+	/* Sampling control configuration */
+	WM8731_config_sampling_control(config_sc);
 
 	/* Active control */
 	/*register 1001b = 0x09
@@ -282,6 +288,7 @@ void wm8731_tx(uint32_t left_channel, uint32_t right_channel)
 	I2S0->TDR[0] = left_channel;
 	I2S0->TDR[1] = right_channel;
 }
+
 void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel)
 {
 	/*
@@ -290,4 +297,39 @@ void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel)
 	 */
 	*left_channel = I2S0->RDR[0];
 	*right_channel = I2S0->RDR[1];
+}
+
+static void WM8731_soft_reset(void)
+{
+	wm8731_write_register(WM8731_REG_RESET, WM8731_RESET);
+}
+
+static void WM8731_config_left_channel_line_input(void)
+{
+	wm8731_write_register(WM8731_REG_LLINE_IN, WM8731_LINE_IN_LEFT);
+}
+
+static void WM8731_config_right_channel_line_input(void)
+{
+	wm8731_write_register(WM8731_REG_LLINE_IN, WM8731_LINE_IN_RIGHT);
+}
+
+static void WM8731_config_sampling_control(wm8731_sampling_control_t *config_sc)
+{
+	uint16_t data;
+
+//	data |= (config_sc->mode_select << 0);
+//	data |= (config_sc->base_over_sampling_rate << 1);
+//	data |= config_sc->adc_dac_sampling_rate;
+
+	/* check */
+
+	wm8731_write_register(WM8731_REG_SAMPLING_CTRL, data);
+}
+
+
+static void WM8731_config_digital_interface(wm8731_digital_interface_t *config_di)
+{
+
+	wm8731_write_register(WM8731_REG_DIGITAL_PATH, WM8731_DIGITAL_INT_CONF);
 }

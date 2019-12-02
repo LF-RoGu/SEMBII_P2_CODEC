@@ -50,9 +50,80 @@
 #define WM8731_ACTIVATE				0x0001 // Module is ON
 #define WM8731_DEACTIVATE			0x0000 // Module is OFF
 
+
+#define SC_ADC_DAC_48KHZ            0X00
+
+#define WM8731_DIGITAL_INT_CONF     0x5A
+
 #define Lo(param) ((char *)&param)[0]
 
 #define Hi(param) ((char *)&param)[1]
+
+
+typedef enum
+{
+	NORMAL_MODE,
+	USB_MODE
+} sc_mode_select_t;
+
+typedef enum
+{
+	fs_256 = 0,
+	fs_128 = 0,
+	fs_384 = 1,
+	fs_192 = 1
+} sc_bosr_t;
+
+typedef struct
+{
+  sc_mode_select_t mode_select;      /* the MCLK is set up according to the desire sample rate */
+  sc_bosr_t base_over_sampling_rate; /* rate which digital signal processing is carried out at  (256 frames per second)*/
+  uint8_t adc_dac_sampling_rate;     /* set ADC's & DAC's sampling rate @48 kHZ */
+} wm8731_sampling_control_t;
+
+typedef enum
+{
+	RIGHT_JUSTIFIED,
+	LEFT_JUSTIFIED,
+	I2S_FORMAT,
+	DSP_MODE
+} di_format_t;
+
+typedef enum
+{
+	wl_16bit,
+	wl_20bit,
+	wl_24bit,
+	wl_32bit
+} di_word_length_t;
+
+typedef enum
+{
+	LRC_HIGH_CH_RIGHT,
+	LRC_LOW_CH_RIGHT
+} di_phase_control_t;
+
+typedef enum
+{
+	SLAVE_MODE,
+	MASTER_MODE
+} di_master_slave_mode_t;
+
+typedef enum
+{
+	noclkinversion,
+	clkinversion
+} di_bit_clk_inv_t;
+
+typedef struct
+{
+	di_format_t FORMAT;
+	di_word_length_t IWL;
+	di_phase_control_t LRP;
+	di_master_slave_mode_t MS;
+	di_bit_clk_inv_t BCLKINV;
+} wm8731_digital_interface_t;
+
 
 /*!
  *

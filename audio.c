@@ -12,8 +12,11 @@ uint32_t data_right;
 
 void audio_config (void * arg)
 {
-    /* */
-    wm8731_init(WM8731_DEVICE_ADDRESS, INTR, AUDIO_INPUT_LINE, FS_48000_HZ, NULL);
+    /* WM8731 initialization: */
+    wm8731_init(WM8731_DEVICE_ADDRESS,
+    		    INTR, AUDIO_INPUT_LINE,
+				FS_48000_HZ,
+				NULL);
 	/* */
     wm8731_tx_callback(audio_bypass_send);
 
@@ -43,8 +46,9 @@ void audio_config (void * arg)
 
 void audio_bypass_receive(void * arg)
 {
-		wm8731_rx(&data_left, &data_right);
+	wm8731_rx(&data_left, &data_right);
 }
+
 void audio_bypass_send(void * arg)
 {
 	wm8731_tx(data_left, data_right);
