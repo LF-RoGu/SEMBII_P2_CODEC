@@ -15,6 +15,7 @@ static struct
 static void (*i2s_tx_callback)(void) = 0;
 static void (*i2s_rx_callback)(void) = 0;
 
+/* Sai config struct*/
 static sai_bit_clock_t sai_tx_clock;
 static sai_serial_data_t sai_tx_data;
 static sai_fifo_t sai_tx_fifo;
@@ -34,6 +35,7 @@ void I2S0_Tx_IRQHandler(void)
 	{
 		i2s_tx_callback();
 	}
+	NVIC_ClearPendingIRQ(I2S0_Tx_IRQn);
 }
 void I2S0_Rx_IRQHandler(void)
 {
@@ -41,22 +43,21 @@ void I2S0_Rx_IRQHandler(void)
 	{
 		i2s_rx_callback();
 	}
+	NVIC_ClearPendingIRQ(I2S0_Rx_IRQn);
 }
 
 /* CALLBACK*/
-void wm8731_tx_callback(void (*handler)(void * arg))
+void wm8731_tx_callback(void (*handler)(void))
 {
 	i2s_tx_callback = handler;
 
 	NVIC_EnableIRQ(I2S0_Tx_IRQn);
-	NVIC_ClearPendingIRQ(I2S0_Tx_IRQn);
 }
-void wm8731_rx_callback(void (*handler)(void * arg))
+void wm8731_rx_callback(void (*handler)(void))
 {
 	i2s_rx_callback = handler;
 
 	NVIC_EnableIRQ(I2S0_Rx_IRQn);
-	NVIC_ClearPendingIRQ(I2S0_Rx_IRQn);
 }
 
 void rtos_sai_i2s_config (void)
@@ -64,8 +65,9 @@ void rtos_sai_i2s_config (void)
 	/*
 	 * Enable clock for I2S
 	 */
-	CLOCK_EnableClock(kCLOCK_PortC);
 	CLOCK_EnableClock(kCLOCK_Sai0);
+	/**/
+	CLOCK_EnableClock(kCLOCK_PortC);
 
 	/*
 	 * Config Mux options
@@ -98,7 +100,7 @@ void rtos_sai_i2s_config (void)
 	sai_tx_data.dataWordLength = bit_32;
 	sai_tx_data.dataWordNum = bit_1;
 	sai_tx_data.dataMaskedWord = bit_0;
-	sai_tx_fifo.fifoWatermark = bit_4; /* Se deja de recibir datos si se llena el buffer, le dice cada cuanto debe pasar datos al DMA */
+	sai_tx_fifo.fifoWatermark = WATER_MARK_MASK; /* Se deja de recibir datos si se llena el buffer, le dice cada cuanto debe pasar datos al DMA */
 
 	sai_tx_frame.frameSyncEarly = TRUE;
 	sai_tx_frame.frameSyncPolarity = kSAI_PolarityActiveHigh;
@@ -114,11 +116,13 @@ void rtos_sai_i2s_config (void)
 	sai_tx_transceiver.channelMask = bit_1;
 	sai_tx_transceiver.endChannel = bit_1;
 	sai_tx_transceiver.channelNums = bit_1;
+	/* ~~~~~~~~ SAI Tx Functions ~~~~~~~~ */
+	SAI_TxSetConfig(I2S0, &sai_tx_transceiver);
+	SAI_TxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
 	/*
 	 * RX
 	 */
 	/* ~~~~~~~~ i2s reception configuration ~~~~~~~~ */
-
 	sai_rx_clock.bclkSrcSwap = FALSE; /* el rx depende del rx */
 	sai_rx_clock.bclkInputDelay = FALSE;
 	sai_rx_clock.bclkPolarity = kSAI_PolarityActiveLow;
@@ -130,7 +134,7 @@ void rtos_sai_i2s_config (void)
 	sai_rx_data.dataWordLength = bit_32;
 	sai_rx_data.dataWordNum = bit_1;
 	sai_rx_data.dataMaskedWord = bit_0;
-	sai_rx_fifo.fifoWatermark = bit_4; /* Se deja de recibir datos si se llena el buffer, le dice cada cuanto debe pasar datos al DMA */
+	sai_rx_fifo.fifoWatermark = WATER_MARK_MASK; /* Se deja de recibir datos si se llena el buffer, le dice cada cuanto debe pasar datos al DMA */
 
 	sai_rx_frame.frameSyncEarly = TRUE;
 	sai_rx_frame.frameSyncPolarity = kSAI_PolarityActiveHigh;
@@ -146,9 +150,6 @@ void rtos_sai_i2s_config (void)
 	sai_rx_transceiver.channelMask = bit_1;
 	sai_rx_transceiver.endChannel = bit_1;
 	sai_rx_transceiver.channelNums = bit_1;
-	/* ~~~~~~~~ SAI Tx Functions ~~~~~~~~ */
-	SAI_TxSetConfig(I2S0, &sai_tx_transceiver);
-	SAI_TxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
 	/* ~~~~~~~~ SAI Rx Functions ~~~~~~~~ */
 	SAI_RxSetConfig(I2S0, &sai_rx_transceiver);
 	SAI_RxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
@@ -181,7 +182,8 @@ void wm8731_start(void)
 	 * Transmit Control SAI Register
 	 */
 	/* FIFO Reset*/ /* Transmit Enable*/
-	I2S0->TCSR |= (I2S_TCSR_FR_MASK | I2S_TCSR_TE_MASK);
+	I2S0->TCSR |= (I2S_TCSR_FR_MASK);
+	I2S0->TCSR |= (I2S_TCSR_TE_MASK);
 	/*
 	 * Transmit Channel Enable
 	 */
@@ -189,8 +191,9 @@ void wm8731_start(void)
 	 * RCSR
 	 * Receive Control SAI Register
 	 */
-	/* FIFO Reset*/ /* Transmit Enable*/
-	I2S0->RCSR |= (I2S_RCSR_FR_MASK | I2S_RCSR_RE_MASK);
+	/* FIFO Reset*/ /* Receive Enable*/
+	I2S0->RCSR |= (I2S_RCSR_FR_MASK);
+	I2S0->RCSR |= (I2S_RCSR_RE_MASK);
 	/*
 	 * Receive Channel Enable
 	 */

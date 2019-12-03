@@ -16,9 +16,12 @@
 #include "task.h"
 #include "semphr.h"
 #include "fsl_port.h"
+#include "GPIO.h"
 
 /* The address of the codec is set by the state of the CSB pin */
 #define WM8731_DEVICE_ADDRESS   0x1a    // 0011_010
+/**/
+#define WATER_MARK_MASK (1U)
 
 /* WM8731 sound chip register addresses */
 #define WM8731_ADDRESS				0x34 // WM8731 chip address on I2C bus
@@ -95,11 +98,11 @@ void wm8732_rx_irq_enable(void);
 /*!
  *
  */
-void wm8731_rx_callback(void (*handler)(void * arg));
+void wm8731_rx_callback(void (*handler)(void));
 /*!
  *
  */
-void wm8731_tx_callback(void (*handler)(void * arg));
+void wm8731_tx_callback(void (*handler)(void));
 
 #endif // wm8731_H
 
