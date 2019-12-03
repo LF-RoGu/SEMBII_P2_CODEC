@@ -15,7 +15,19 @@ static struct
 static void (*i2s_tx_callback)(void) = 0;
 static void (*i2s_rx_callback)(void) = 0;
 
-/* ISR*/
+static sai_bit_clock_t sai_tx_clock;
+static sai_serial_data_t sai_tx_data;
+static sai_fifo_t sai_tx_fifo;
+static sai_frame_sync_t sai_tx_frame;
+static sai_transceiver_t sai_tx_transceiver;
+
+static sai_bit_clock_t sai_rx_clock;
+static sai_serial_data_t sai_rx_data;
+static sai_fifo_t sai_rx_fifo;
+static sai_frame_sync_t sai_rx_frame;
+static sai_transceiver_t sai_rx_transceiver;
+
+/* ISR Handler*/
 void I2S0_Tx_IRQHandler(void)
 {
 	if(i2s_tx_callback)
@@ -73,88 +85,73 @@ void rtos_sai_i2s_config (void)
 	/*
 	 * TX
 	 */
-	sai_config_t sai_tx_config =
-	{
-			.protocol = kSAI_BusPCMB,
-			.syncMode = kSAI_ModeSync,
-			.mclkOutputEnable = FALSE,
-			.mclkSource = kSAI_MclkSourceSysclk,
-			.masterSlave = kSAI_Slave,
-	};
-	sai_bit_clock_t sai_tx_clock =
-	{
-			.bclkSrcSwap = TRUE,
-			.bclkInputDelay = FALSE,
-			.bclkPolarity = kSAI_PolarityActiveHigh,
-			.bclkSource = kSAI_BclkSourceBusclk,
-	};
-	sai_serial_data_t sai_tx_data =
-	{
-			.dataOrder = kSAI_DataMSB,
-			.dataWord0Length = bit_32,
-			.dataWordNLength = bit_32,
-			.dataWordLength = bit_32,
-			.dataWordNum = bit_2,
-			.dataMaskedWord = bit_0,
-	};
-	sai_fifo_t sai_tx_fifo_config =
-	{
-			.fifoWatermark = bit_1,
-	};
+	/*~~~~~~~~ i2s transmission configuration ~~~~~~~~~~*/
 
-	/* Init SAI I2S config*/
-	SAI_TxInit(I2S0, &sai_tx_config);
-	/* */
-	SAI_TxSetBitClockPolarity(I2S0,sai_tx_clock.bclkPolarity);
-	/* */
-	SAI_TxSetSerialDataConfig(I2S0,&sai_tx_data);
-	/* */
-	SAI_TxSetFifoConfig(I2S0, &sai_tx_fifo_config);
-	/* */
-	SAI_TxSetChannelFIFOMask(I2S0, bit_3);
+	sai_tx_clock.bclkSrcSwap = TRUE; /* el tx depende del rx */
+	sai_tx_clock.bclkInputDelay = FALSE;
+	sai_tx_clock.bclkPolarity = kSAI_PolarityActiveLow;
+	sai_tx_clock.bclkSource = kSAI_BclkSourceBusclk; /* el bclk que se está recibiendo */
 
+	sai_tx_data.dataOrder = kSAI_DataMSB;
+	sai_tx_data.dataWord0Length = bit_32;
+	sai_tx_data.dataWordNLength = bit_32;
+	sai_tx_data.dataWordLength = bit_32;
+	sai_tx_data.dataWordNum = bit_1;
+	sai_tx_data.dataMaskedWord = bit_0;
+	sai_tx_fifo.fifoWatermark = bit_4; /* Se deja de recibir datos si se llena el buffer, le dice cada cuanto debe pasar datos al DMA */
+
+	sai_tx_frame.frameSyncEarly = TRUE;
+	sai_tx_frame.frameSyncPolarity = kSAI_PolarityActiveHigh;
+	sai_tx_frame.frameSyncWidth = bit_1;
+
+	sai_tx_transceiver.serialData = sai_tx_data;
+	sai_tx_transceiver.frameSync = sai_tx_frame;
+	sai_tx_transceiver.bitClock =  sai_tx_clock;
+	sai_tx_transceiver.fifo = sai_tx_fifo;
+	sai_tx_transceiver.masterSlave = kSAI_Slave;
+	sai_tx_transceiver.syncMode = kSAI_ModeSync;
+	sai_tx_transceiver.startChannel = bit_1;
+	sai_tx_transceiver.channelMask = bit_1;
+	sai_tx_transceiver.endChannel = bit_1;
+	sai_tx_transceiver.channelNums = bit_1;
 	/*
 	 * RX
 	 */
-	sai_config_t sai_rx_config =
-	{
-			.protocol = kSAI_BusPCMB,
-			.syncMode = kSAI_ModeSync,
-			.mclkOutputEnable = FALSE,
-			.mclkSource = kSAI_MclkSourceSysclk,
-			.masterSlave = kSAI_Slave,
-	};
-	sai_bit_clock_t sai_rx_clock =
-	{
-			.bclkSrcSwap = FALSE,
-			.bclkInputDelay = FALSE,
-			.bclkPolarity = kSAI_PolarityActiveHigh,
-			.bclkSource = kSAI_BclkSourceBusclk,
-	};
-	sai_serial_data_t sai_rx_data =
-	{
-			.dataOrder = kSAI_DataMSB,
-			.dataWord0Length = bit_32,
-			.dataWordNLength = bit_32,
-			.dataWordLength = bit_32,
-			.dataWordNum = bit_2,
-			.dataMaskedWord = bit_0,
-	};
-	sai_fifo_t sai_rx_fifo_config =
-	{
-			.fifoWatermark = bit_1,
-	};
+	/* ~~~~~~~~ i2s reception configuration ~~~~~~~~ */
 
-	/* Init SAI I2S config*/
-	SAI_RxInit(I2S0, &sai_rx_config);
-	/* */
-	SAI_RxSetBitClockPolarity(I2S0,sai_rx_clock.bclkPolarity);
-	/* */
-	SAI_RxSetSerialDataConfig(I2S0,&sai_rx_data);
-	/* */
-	SAI_RxSetFifoConfig(I2S0, &sai_rx_fifo_config);
-	/* */
-	SAI_RxSetChannelFIFOMask(I2S0, bit_3);
+	sai_rx_clock.bclkSrcSwap = FALSE; /* el rx depende del rx */
+	sai_rx_clock.bclkInputDelay = FALSE;
+	sai_rx_clock.bclkPolarity = kSAI_PolarityActiveLow;
+	sai_rx_clock.bclkSource = kSAI_BclkSourceBusclk; /* el bclk que se está recibiendo */
+
+	sai_rx_data.dataOrder = kSAI_DataMSB;
+	sai_rx_data.dataWord0Length = bit_32;
+	sai_rx_data.dataWordNLength = bit_32;
+	sai_rx_data.dataWordLength = bit_32;
+	sai_rx_data.dataWordNum = bit_1;
+	sai_rx_data.dataMaskedWord = bit_0;
+	sai_rx_fifo.fifoWatermark = bit_4; /* Se deja de recibir datos si se llena el buffer, le dice cada cuanto debe pasar datos al DMA */
+
+	sai_rx_frame.frameSyncEarly = TRUE;
+	sai_rx_frame.frameSyncPolarity = kSAI_PolarityActiveHigh;
+	sai_rx_frame.frameSyncWidth = bit_1;
+
+	sai_rx_transceiver.serialData = sai_rx_data;
+	sai_rx_transceiver.frameSync = sai_rx_frame;
+	sai_rx_transceiver.bitClock =  sai_rx_clock;
+	sai_rx_transceiver.fifo = sai_rx_fifo;
+	sai_rx_transceiver.masterSlave = kSAI_Slave;
+	sai_rx_transceiver.syncMode = kSAI_ModeAsync;
+	sai_rx_transceiver.startChannel = bit_1;
+	sai_rx_transceiver.channelMask = bit_1;
+	sai_rx_transceiver.endChannel = bit_1;
+	sai_rx_transceiver.channelNums = bit_1;
+	/* ~~~~~~~~ SAI Tx Functions ~~~~~~~~ */
+	SAI_TxSetConfig(I2S0, &sai_tx_transceiver);
+	SAI_TxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
+	/* ~~~~~~~~ SAI Rx Functions ~~~~~~~~ */
+	SAI_RxSetConfig(I2S0, &sai_rx_transceiver);
+	SAI_RxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
 }
 
 void wm8731_write_register (uint8_t reg, uint16_t data)
@@ -186,11 +183,17 @@ void wm8731_start(void)
 	/* FIFO Reset*/ /* Transmit Enable*/
 	I2S0->TCSR |= (I2S_TCSR_FR_MASK | I2S_TCSR_TE_MASK);
 	/*
+	 * Transmit Channel Enable
+	 */
+	/*
 	 * RCSR
 	 * Receive Control SAI Register
 	 */
 	/* FIFO Reset*/ /* Transmit Enable*/
 	I2S0->RCSR |= (I2S_RCSR_FR_MASK | I2S_RCSR_RE_MASK);
+	/*
+	 * Receive Channel Enable
+	 */
 }
 
 void wm8732_tx_irq_enable(void)
@@ -270,7 +273,6 @@ void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8
 	/*register 1001b = 0x09
 	* CLKOUT divider select divided by 2   = 0*/
 	wm8731_write_register(WM8731_REG_ACTIVE_CTRL, WM8731_ACTIVATE);
-
 }
 
 void wm8731_tx(uint32_t left_channel, uint32_t right_channel)
@@ -280,7 +282,7 @@ void wm8731_tx(uint32_t left_channel, uint32_t right_channel)
 	 * Transmit Data Register
 	 */
 	I2S0->TDR[0] = left_channel;
-	I2S0->TDR[1] = right_channel;
+	//I2S0->TDR[1] = right_channel;
 }
 void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel)
 {
@@ -289,5 +291,5 @@ void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel)
 	 * Receive Data Register
 	 */
 	*left_channel = I2S0->RDR[0];
-	*right_channel = I2S0->RDR[1];
+	//*right_channel = I2S0->RDR[1];
 }

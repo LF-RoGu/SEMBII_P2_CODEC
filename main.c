@@ -82,9 +82,6 @@ int main(void) {
 
     rtos_i2c_init(i2c_main_config_t);
 
-    /* I2S*/
-    rtos_sai_i2s_config();
-
     /* Task scheduler*/
     audio_handle.init_end = xSemaphoreCreateBinary();
 

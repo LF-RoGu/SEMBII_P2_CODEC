@@ -51,6 +51,10 @@ void audio_config (void * arg);
 /*!
  *
  */
+void audio_bypass(void * arg);
+/*!
+ *
+ */
 void audio_bypass_receive(void * arg);
 /*!
  *
