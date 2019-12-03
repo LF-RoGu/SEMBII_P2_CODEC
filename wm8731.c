@@ -6,8 +6,23 @@
 #include "fsl_sai.h"
 
 static void WM8731_soft_reset(void);
-static void WM8731_config_digital_interface(wm8731_sampling_control_t *config_di);
+static void WM8731_config_digital_interface(wm8731_digital_interface_t *config_di);
 static void WM8731_config_sampling_control(wm8731_sampling_control_t *config_sc);
+static void WM8731_config_left_channel_line_input(void);
+static void WM8731_config_right_channel_line_input(void);
+
+static sai_bit_clock_t sai_tx_clock;
+static sai_serial_data_t sai_tx_data;
+static sai_fifo_t sai_tx_fifo;
+static sai_frame_sync_t sai_tx_frame;
+static sai_transceiver_t sai_tx_transceiver;
+
+static sai_bit_clock_t sai_rx_clock;
+static sai_serial_data_t sai_rx_data;
+static sai_fifo_t sai_rx_fifo;
+static sai_frame_sync_t sai_rx_frame;
+static sai_transceiver_t sai_rx_transceiver;
+
 
 static struct
 {
@@ -69,99 +84,72 @@ void rtos_sai_i2s_config (void)
 	/* I2S_0 RX_FS*/
 	PORTC->PCR[bit_7] = PORT_PCR_MUX(bit_4);
 
-	/*
-	 * TX
-	 */
-	sai_config_t sai_tx_config =
-	{
-		.protocol = kSAI_BusPCMB,
-		.syncMode = kSAI_ModeAsync,
-		.mclkOutputEnable = FALSE,
-		.mclkSource = kSAI_MclkSourceSysclk,
-		.masterSlave = kSAI_Slave,
-	};
+	/*~~~~~~~~ i2s transmission configuration ~~~~~~~~~~*/
 
-	sai_bit_clock_t sai_tx_clock =
-	{
-		.bclkSrcSwap = TRUE,
-		.bclkInputDelay = FALSE,
-		.bclkPolarity = kSAI_PolarityActiveHigh,
-		.bclkSource = kSAI_BclkSourceBusclk,
-	};
+	sai_tx_clock.bclkSrcSwap = TRUE; /* el tx depende del rx */
+	sai_tx_clock.bclkInputDelay = FALSE;
+	sai_tx_clock.bclkPolarity = kSAI_PolarityActiveLow;
+	sai_tx_clock.bclkSource = kSAI_BclkSourceBusclk; /* el bclk que se está recibiendo */
 
-	sai_serial_data_t sai_tx_data =
-	{
-		.dataOrder = kSAI_DataMSB,
-		.dataWord0Length = bit_32,
-		.dataWordNLength = bit_32,
-		.dataWordLength = bit_32,
-		.dataWordNum = bit_2,
-		.dataMaskedWord = bit_0,
-	};
+	sai_tx_data.dataOrder = kSAI_DataMSB;
+	sai_tx_data.dataWord0Length = 32;
+	sai_tx_data.dataWordNLength = 32;
+	sai_tx_data.dataWordLength = 32;
+	sai_tx_data.dataWordNum = 1;
+	sai_tx_data.dataMaskedWord = 0;
+	sai_tx_fifo.fifoWatermark = 4; /* Se deja de recibir datos si se llena el buffer, le dice cada cuanto debe pasar datos al DMA */
 
-	sai_fifo_t sai_tx_fifo_config =
-	{
-		.fifoWatermark = bit_1,
-	};
+	sai_tx_frame.frameSyncEarly = TRUE;
+	sai_tx_frame.frameSyncPolarity = kSAI_PolarityActiveHigh;
+	sai_tx_frame.frameSyncWidth = 1;
 
-	/* Init SAI I2S config*/
-	SAI_TxInit(I2S0, &sai_tx_config);
-	/* */
-	SAI_TxSetBitClockPolarity(I2S0,sai_tx_clock.bclkPolarity);
-	/* */
-	SAI_TxSetSerialDataConfig(I2S0,&sai_tx_data);
-	/* */
-	SAI_TxSetFifoConfig(I2S0, &sai_tx_fifo_config);
-	/* */
-	SAI_TxSetChannelFIFOMask(I2S0, bit_3);
+	sai_tx_transceiver.serialData = sai_tx_data;
+	sai_tx_transceiver.frameSync = sai_tx_frame;
+	sai_tx_transceiver.bitClock =  sai_tx_clock;
+	sai_tx_transceiver.fifo = sai_tx_fifo;
+	sai_tx_transceiver.masterSlave = kSAI_Slave;
+	sai_tx_transceiver.syncMode = kSAI_ModeSync;
+	sai_tx_transceiver.startChannel = 1;
+	sai_tx_transceiver.channelMask = 1;
+	sai_tx_transceiver.endChannel = 1;
+	sai_tx_transceiver.channelNums = 1;
 
-	/*
-	 * RX
-	 */
-	sai_config_t sai_rx_config =
-	{
-		.protocol = kSAI_BusPCMB,   /*!rising edge syncronization*/
-		.syncMode = kSAI_ModeSync,  /*!synchronous mode*/
-		.mclkOutputEnable = FALSE,  /*!< Master clock output enable, true means master clock divider enabled */
-		//.mclkSource = kSAI_MclkSourceSysclk,
-		.masterSlave = kSAI_Slave,
-		.bclkSource = kSAI_BclkSourceMclkDiv,
+	SAI_TxSetConfig(I2S0, &sai_tx_transceiver);
+	SAI_TxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
 
-	};
+	/* ~~~~~~~~ i2s reception configuration ~~~~~~~~ */
 
-	sai_bit_clock_t sai_rx_clock =
-	{
-		.bclkSrcSwap = T,
-		.bclkInputDelay = FALSE,
-		.bclkPolarity = kSAI_PolarityActiveHigh,
-		.bclkSource = kSAI_BclkSourceBusclk,
-	};
+	sai_rx_clock.bclkSrcSwap = FALSE; /* el rx depende del rx */
+	sai_rx_clock.bclkInputDelay = FALSE;
+	sai_rx_clock.bclkPolarity = kSAI_PolarityActiveLow;
+	sai_rx_clock.bclkSource = kSAI_BclkSourceBusclk; /* el bclk que se está recibiendo */
 
-	sai_serial_data_t sai_rx_data =
-	{
-		.dataOrder = kSAI_DataMSB,
-		.dataWord0Length = bit_32,
-		.dataWordNLength = bit_32,
-		.dataWordLength = bit_32,
-		.dataWordNum = bit_2,
-		.dataMaskedWord = bit_0,
-	};
+	sai_rx_data.dataOrder = kSAI_DataMSB;
+	sai_rx_data.dataWord0Length = 32;
+	sai_rx_data.dataWordNLength = 32;
+	sai_rx_data.dataWordLength = 32;
+	sai_rx_data.dataWordNum = 1;
+	sai_rx_data.dataMaskedWord = 0;
+	sai_rx_fifo.fifoWatermark = 4; /* Se deja de recibir datos si se llena el buffer, le dice cada cuanto debe pasar datos al DMA */
 
-	sai_fifo_t sai_rx_fifo_config =
-	{
-		.fifoWatermark = bit_1,
-	};
+	sai_rx_frame.frameSyncEarly = TRUE;
+	sai_rx_frame.frameSyncPolarity = kSAI_PolarityActiveHigh;
+	sai_rx_frame.frameSyncWidth = 1;
 
-	/* Init SAI I2S config*/
-	SAI_RxInit(I2S0, &sai_rx_config);
+	sai_rx_transceiver.serialData = sai_rx_data;
+	sai_rx_transceiver.frameSync = sai_rx_frame;
+	sai_rx_transceiver.bitClock =  sai_rx_clock;
+	sai_rx_transceiver.fifo = sai_rx_fifo;
+	sai_rx_transceiver.masterSlave = kSAI_Slave;
+	sai_rx_transceiver.syncMode = kSAI_ModeAsync;
+	sai_rx_transceiver.startChannel = 1;
+	sai_rx_transceiver.channelMask = 1;
+	sai_rx_transceiver.endChannel = 1;
+	sai_rx_transceiver.channelNums = 1;
 
-	SAI_RxSetBitClockPolarity(I2S0, sai_rx_clock.bclkPolarity);
-	/* */
-	SAI_RxSetSerialDataConfig(I2S0, &sai_rx_data);
-	/* */
-	SAI_RxSetFifoConfig(I2S0, &sai_rx_fifo_config);
-	/* */
-	SAI_RxSetChannelFIFOMask(I2S0, bit_3);
+	SAI_RxSetConfig(I2S0, &sai_rx_transceiver);
+	SAI_RxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
+
 }
 
 void wm8731_write_register (uint8_t reg, uint16_t data)
@@ -232,7 +220,7 @@ void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8
 	wm8731_handle.slave_address = slave_address;
 
 	/* generate a soft reset */
-	W8731_soft_reset();
+	WM8731_soft_reset();
 
 	/* configure left channel line input*/
 	WM8731_config_left_channel_line_input();
@@ -270,7 +258,7 @@ void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8
 	wm8731_write_register(WM8731_REG_DIGITAL_IF, WM8731_DB_INTERFACE);
 
 	/* Sampling control configuration */
-	WM8731_config_sampling_control(config_sc);
+	//WM8731_config_sampling_control(config_sc);
 
 	/* Active control */
 	/*register 1001b = 0x09
