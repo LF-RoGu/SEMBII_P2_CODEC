@@ -296,3 +296,58 @@ void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel)
 	*left_channel = I2S0->RDR[0];
 	//*right_channel = I2S0->RDR[1];
 }
+
+/************DMA PART***************/
+
+static void wm8731_dma_config(void (*callback_rx)(void), void (*callback_tx)(void))
+{
+	DMAMUX_Init(WM8731_DMAMUX0);
+
+	DMAMUX_SetSource(WM8731_DMAMUX0, WM8731_DMA_RX_CHANNEL, WM871_DMA_RX_I2S_REQUEST);
+	DMAMUX_EnableChannel(WM8731_DMAMUX0, WM8731_DMA_RX_CHANNEL);
+
+	DMAMUX_SetSource(WM8731_DMAMUX0, WM8731_DMA_TX_CHANNEL, WM871_DMA_TX_I2S_REQUEST);
+	DMAMUX_EnableChannel(WM8731_DMAMUX0, WM8731_DMA_TX_CHANNEL);
+
+	EDMA_GetDefaultConfig(&dma_config);
+	EDMA_init(WM8731_DMA, &dma_config);
+	EDMA_CreateHandle(&dma_handle_rx, WM8731_DMA, WM8731_DMA_RX_CHANNEL);
+	EDMA_CreateHandle(&dma_handle_tx, WM8731_DMA, WM8731_DMA_TX_CHANNEL);
+}
+
+void wm8732_send_dma(void)
+{
+	if(tx_ping)
+	{
+		SAI_TransferSendEDMA(I2S0, &sai_edma_handle_tx, &sai_Transfer_tx_pong);
+		tx_ping = 0;
+		tx_pong = 1;
+
+		memcpy(data_tx_array_ping, data_rx_array_ping,(WM8731_BUFFER_SIZE*4));
+	}
+	else if(tx_pong)
+	{
+		SAI_TransferSendEDMA(I2S0, &sai_edma_handle_tx, &sai_Transfer_tx_ping);
+		tx_ping = 1;
+		tx_pong = 0;
+
+		memcpy(data_tx_array_pong, data_rx_array_pong,(WM8731_BUFFER_SIZE*4));
+	}
+}
+
+void wm8732_receive_dma(void)
+{
+	if(rx_ping)
+	{
+		SAI_TransferReceiveEDMA(I2S0, &sai_edma_handle_rx, &sai_Receive_rx_pong);
+		rx_ping = 0;
+		rx_pong = 1;
+	}
+	else if(rx_pong)
+	{
+		SAI_TransferReceiveEDMA(I2S0, &sai_edma_handle_rx, &sai_Receive_rx_ping);
+		rx_ping = 1;
+		rx_pong = 0;
+	}
+}
+
