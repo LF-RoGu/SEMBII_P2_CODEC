@@ -17,7 +17,6 @@
 #include "semphr.h"
 #include "fsl_port.h"
 
-
 /* The address of the codec is set by the state of the CSB pin */
 #define WM8731_DEVICE_ADDRESS   0x1a    // 0011_010
 /**/
@@ -103,13 +102,13 @@ void wm8731_rx_callback(void (*handler)(void));
  *
  */
 void wm8731_tx_callback(void (*handler)(void));
-
-/*dma part*/
-static void wm8731_dma_config(void (*callback_rx)(void), void (*callback_tx)(void));
-
-
-void wm8732_receive_dma(void);
-
-void wm8732_send_dma(void);
-
+/*!
+ *
+ */
+void dma_init(void);
+/*!
+ *
+ */
+void set_dma_transfer(void);
 #endif // wm8731_H
+

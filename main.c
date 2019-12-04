@@ -85,6 +85,9 @@ int main(void) {
     /* Task scheduler*/
     audio_handle.init_end = xSemaphoreCreateBinary();
 
+    /*dma*/
+    dma_init();
+
     xTaskCreate(audio_config, "audio_config", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-1, NULL);
     //xTaskCreate(audio_bypass_receive, "audio_bypass_receive", 4*configMINIMAL_STACK_SIZE, NULL, configMAX_PRIORITIES-2, NULL);
 

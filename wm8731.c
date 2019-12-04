@@ -4,6 +4,25 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "fsl_sai.h"
+#include "fsl_edma.h"
+#include "fsl_dmamux.h"
+
+/****************************DMA***********************************/
+/*******************************************************************************
+ * DMA Definitions
+ ******************************************************************************/
+#define EXAMPLE_DMA DMA0
+#define EXAMPLE_DMAMUX DMAMUX0
+
+#define BUFF_LENGTH 1U
+
+static edma_handle_t g_EDMA_Handle;
+static edma_transfer_config_t transferConfig;
+static edma_config_t userConfig;
+volatile bool g_Transfer_Done = false;
+
+AT_NONCACHEABLE_SECTION_INIT(uint32_t srcAddr[BUFF_LENGTH])  = {0x00};
+AT_NONCACHEABLE_SECTION_INIT(uint32_t destAddr[BUFF_LENGTH]) = {0x00};
 
 static struct
 {
@@ -14,6 +33,11 @@ static struct
 /*CALLBACKS ptr*/
 static void (*i2s_tx_callback)(void) = 0;
 static void (*i2s_rx_callback)(void) = 0;
+/* Bypass funct*/
+uint32_t buffer_bypass;
+
+static void bypass_rx(void);
+static void bypass_tx(void);
 
 /* Sai config struct*/
 static sai_bit_clock_t sai_tx_clock;
@@ -31,14 +55,21 @@ static sai_transceiver_t sai_rx_transceiver;
 /* ISR Handler*/
 void I2S0_Tx_IRQHandler(void)
 {
+	wm8732_tx_irq_enable();
+	bypass_tx();
+	/* Callback*/
 	if(i2s_tx_callback)
 	{
 		i2s_tx_callback();
 	}
 	NVIC_ClearPendingIRQ(I2S0_Tx_IRQn);
 }
+
 void I2S0_Rx_IRQHandler(void)
 {
+	wm8732_rx_irq_enable();
+	bypass_rx();
+	/* Callback*/
 	if(i2s_rx_callback)
 	{
 		i2s_rx_callback();
@@ -95,6 +126,7 @@ void rtos_sai_i2s_config (void)
 	sai_tx_clock.bclkSource = kSAI_BclkSourceBusclk; /* el bclk que se está recibiendo */
 
 	sai_tx_data.dataOrder = kSAI_DataMSB;
+	sai_tx_data.dataFirstBitShifted = bit_32;
 	sai_tx_data.dataWord0Length = bit_32;
 	sai_tx_data.dataWordNLength = bit_32;
 	sai_tx_data.dataWordLength = bit_32;
@@ -129,6 +161,7 @@ void rtos_sai_i2s_config (void)
 	sai_rx_clock.bclkSource = kSAI_BclkSourceBusclk; /* el bclk que se está recibiendo */
 
 	sai_rx_data.dataOrder = kSAI_DataMSB;
+	sai_tx_data.dataFirstBitShifted = bit_32;
 	sai_rx_data.dataWord0Length = bit_32;
 	sai_rx_data.dataWordNLength = bit_32;
 	sai_rx_data.dataWordLength = bit_32;
@@ -155,6 +188,55 @@ void rtos_sai_i2s_config (void)
 	SAI_RxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
 }
 
+void rtossai_i2s_common_sonfig(void)
+{
+	sai_transceiver_t Config_Tx;
+	sai_transceiver_t Config_Rx;
+
+	CLOCK_EnableClock(kCLOCK_PortC);
+
+	PORTC->PCR[1] = PORT_PCR_MUX(6);
+	PORTC->PCR[5] = PORT_PCR_MUX(4);
+	PORTC->PCR[7] = PORT_PCR_MUX(4);
+	PORTC->PCR[9] = PORT_PCR_MUX(4);
+
+	SAI_Init(I2S0);
+
+	SAI_GetClassicI2SConfig(&Config_Tx, kSAI_WordWidth32bits, kSAI_Stereo , kSAI_Channel0Mask);
+	Config_Tx.masterSlave = kSAI_Slave;
+
+	Config_Tx.channelMask = kSAI_Channel0Mask;
+	Config_Tx.channelNums = 1;
+	Config_Tx.startChannel = 1;
+	Config_Tx.endChannel = 1;
+
+	SAI_TxSetConfig(I2S0,&Config_Tx);
+	SAI_TxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
+	SAI_TxEnable(I2S0, true);
+
+
+	SAI_GetClassicI2SConfig(&Config_Rx, kSAI_WordWidth32bits, kSAI_Stereo , kSAI_Channel0Mask);
+	Config_Rx.masterSlave = kSAI_Slave;
+	Config_Rx.syncMode = kSAI_ModeAsync;
+
+	Config_Rx.channelMask = kSAI_Channel0Mask;
+	Config_Rx.channelNums = 1;
+	Config_Rx.startChannel = 1;
+	Config_Rx.endChannel = 1;
+
+	SAI_RxSetConfig(I2S0,&Config_Rx);
+	SAI_RxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
+	SAI_RxEnable(I2S0, true);
+
+	I2S0->RCSR |= I2S_RCSR_FRIE_MASK;
+
+	I2S0->TCSR |= I2S_TCSR_FRIE_MASK;
+
+	NVIC_SetPriority(I2S0_Tx_IRQn ,29);
+	NVIC_SetPriority(I2S0_Rx_IRQn, 28);
+	NVIC_EnableIRQ(I2S0_Rx_IRQn);
+	NVIC_EnableIRQ(I2S0_Tx_IRQn);
+}
 void wm8731_write_register (uint8_t reg, uint16_t data)
 {
 	uint8_t address;
@@ -185,18 +267,12 @@ void wm8731_start(void)
 	I2S0->TCSR |= (I2S_TCSR_FR_MASK);
 	I2S0->TCSR |= (I2S_TCSR_TE_MASK);
 	/*
-	 * Transmit Channel Enable
-	 */
-	/*
 	 * RCSR
 	 * Receive Control SAI Register
 	 */
 	/* FIFO Reset*/ /* Receive Enable*/
 	I2S0->RCSR |= (I2S_RCSR_FR_MASK);
 	I2S0->RCSR |= (I2S_RCSR_RE_MASK);
-	/*
-	 * Receive Channel Enable
-	 */
 }
 
 void wm8732_tx_irq_enable(void)
@@ -297,57 +373,50 @@ void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel)
 	//*right_channel = I2S0->RDR[1];
 }
 
-/************DMA PART***************/
-
-static void wm8731_dma_config(void (*callback_rx)(void), void (*callback_tx)(void))
+static void bypass_rx(void)
 {
-	DMAMUX_Init(WM8731_DMAMUX0);
+	//buffer_bypass = I2S0->RDR[0];
+	srcAddr[0] = I2S0->RDR[0];
+	/**/
+	set_dma_transfer();
+}
+static void bypass_tx(void)
+{
+	//I2S0->TDR[0] = buffer_bypass;
+	I2S0->TDR[0] = destAddr[0];
+}
+/****************************DMA***********************************/
 
-	DMAMUX_SetSource(WM8731_DMAMUX0, WM8731_DMA_RX_CHANNEL, WM871_DMA_RX_I2S_REQUEST);
-	DMAMUX_EnableChannel(WM8731_DMAMUX0, WM8731_DMA_RX_CHANNEL);
-
-	DMAMUX_SetSource(WM8731_DMAMUX0, WM8731_DMA_TX_CHANNEL, WM871_DMA_TX_I2S_REQUEST);
-	DMAMUX_EnableChannel(WM8731_DMAMUX0, WM8731_DMA_TX_CHANNEL);
-
-	EDMA_GetDefaultConfig(&dma_config);
-	EDMA_init(WM8731_DMA, &dma_config);
-	EDMA_CreateHandle(&dma_handle_rx, WM8731_DMA, WM8731_DMA_RX_CHANNEL);
-	EDMA_CreateHandle(&dma_handle_tx, WM8731_DMA, WM8731_DMA_TX_CHANNEL);
+/* User callback function for EDMA transfer. */
+void EDMA_Callback(edma_handle_t *handle, void *param, bool transferDone, uint32_t tcds)
+{
+    if (transferDone)
+    {
+        g_Transfer_Done = true;
+    }
 }
 
-void wm8732_send_dma(void)
+void dma_init(void)
 {
-	if(tx_ping)
-	{
-		SAI_TransferSendEDMA(I2S0, &sai_edma_handle_tx, &sai_Transfer_tx_pong);
-		tx_ping = 0;
-		tx_pong = 1;
-
-		memcpy(data_tx_array_ping, data_rx_array_ping,(WM8731_BUFFER_SIZE*4));
-	}
-	else if(tx_pong)
-	{
-		SAI_TransferSendEDMA(I2S0, &sai_edma_handle_tx, &sai_Transfer_tx_ping);
-		tx_ping = 1;
-		tx_pong = 0;
-
-		memcpy(data_tx_array_pong, data_rx_array_pong,(WM8731_BUFFER_SIZE*4));
-	}
+    /* Configure DMAMUX */
+    DMAMUX_Init(EXAMPLE_DMAMUX);
+    DMAMUX_SetSource(EXAMPLE_DMAMUX, 0, 63);
+    DMAMUX_EnableChannel(EXAMPLE_DMAMUX, 0);
+    EDMA_GetDefaultConfig(&userConfig);
+    EDMA_Init(EXAMPLE_DMA, &userConfig);
+    EDMA_CreateHandle(&g_EDMA_Handle, EXAMPLE_DMA, 0);
+    EDMA_SetCallback(&g_EDMA_Handle, EDMA_Callback, NULL);
+    EDMA_PrepareTransfer(&transferConfig, srcAddr, sizeof(srcAddr[0]), destAddr, sizeof(destAddr[0]),
+                         sizeof(srcAddr[0]), sizeof(srcAddr), kEDMA_MemoryToMemory);
 }
 
-void wm8732_receive_dma(void)
+void set_dma_transfer(void)
 {
-	if(rx_ping)
-	{
-		SAI_TransferReceiveEDMA(I2S0, &sai_edma_handle_rx, &sai_Receive_rx_pong);
-		rx_ping = 0;
-		rx_pong = 1;
-	}
-	else if(rx_pong)
-	{
-		SAI_TransferReceiveEDMA(I2S0, &sai_edma_handle_rx, &sai_Receive_rx_ping);
-		rx_ping = 1;
-		rx_pong = 0;
-	}
-}
 
+    EDMA_SubmitTransfer(&g_EDMA_Handle, &transferConfig);
+    EDMA_StartTransfer(&g_EDMA_Handle);
+    /* Wait for EDMA transfer finish */
+    while (g_Transfer_Done != true)
+    {
+    }
+}
