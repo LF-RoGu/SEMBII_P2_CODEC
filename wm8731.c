@@ -16,10 +16,6 @@
 #include "fsl_edma.h"
 #include "fsl_dmamux.h"
 
-/****************************DMA***********************************/
-/*******************************************************************************
- * DMA Definitions
- ******************************************************************************/
 #define EXAMPLE_DMA DMA0
 #define EXAMPLE_DMAMUX DMAMUX0
 
@@ -86,13 +82,13 @@ void I2S0_Rx_IRQHandler(void)
 	NVIC_ClearPendingIRQ(I2S0_Rx_IRQn);
 }
 
-/* CALLBACK*/
 void wm8731_tx_callback(void (*handler)(void))
 {
 	i2s_tx_callback = handler;
 
 	NVIC_EnableIRQ(I2S0_Tx_IRQn);
 }
+
 void wm8731_rx_callback(void (*handler)(void))
 {
 	i2s_rx_callback = handler;
@@ -102,32 +98,21 @@ void wm8731_rx_callback(void (*handler)(void))
 
 void rtos_sai_i2s_config (void)
 {
-	/*
-	 * Enable clock for I2S
-	 */
+	/* Enable clock for I2S */
 	CLOCK_EnableClock(kCLOCK_Sai0);
-	/**/
+	/* Enable Port C clock for GPIO*/
 	CLOCK_EnableClock(kCLOCK_PortC);
 
-	/*
-	 * Config Mux options
-	 */
-	/* I2S_0 TXD0*/
+	/* Configure GPIO pin for I2S_0 TXD0 */
 	PORTC->PCR[bit_1] = PORT_PCR_MUX(bit_6);
-	/* I2S_0 RXD0*/
+	/* Configure GPIO pin for I2S_0 RXD0*/
 	PORTC->PCR[bit_5] = PORT_PCR_MUX(bit_4);
-	/* I2S_0 RX_BCLK*/
+	/* Configure GPIO pin for I2S_0 RX_BCLK*/
 	PORTC->PCR[bit_9] = PORT_PCR_MUX(bit_4);
-	/* I2S_0 RX_FS*/
+	/* Configure GPIO pin for I2S_0 RX_FS*/
 	PORTC->PCR[bit_7] = PORT_PCR_MUX(bit_4);
 
-	/*
-	 * Sai config
-	 */
-	/*
-	 * TX
-	 */
-	/*~~~~~~~~ i2s transmission configuration ~~~~~~~~~~*/
+	/* ~~~~~~~~ i2s transmission configuration ~~~~~~~~~~*/
 
 	sai_tx_clock.bclkSrcSwap = TRUE; /* el tx depende del rx */
 	sai_tx_clock.bclkInputDelay = FALSE;
@@ -160,9 +145,7 @@ void rtos_sai_i2s_config (void)
 	/* ~~~~~~~~ SAI Tx Functions ~~~~~~~~ */
 	SAI_TxSetConfig(I2S0, &sai_tx_transceiver);
 	SAI_TxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
-	/*
-	 * RX
-	 */
+
 	/* ~~~~~~~~ i2s reception configuration ~~~~~~~~ */
 	sai_rx_clock.bclkSrcSwap = FALSE; /* el rx depende del rx */
 	sai_rx_clock.bclkInputDelay = FALSE;
@@ -212,8 +195,8 @@ void rtossai_i2s_common_sonfig(void)
 	SAI_Init(I2S0);
 
 	SAI_GetClassicI2SConfig(&Config_Tx, kSAI_WordWidth32bits, kSAI_Stereo , kSAI_Channel0Mask);
-	Config_Tx.masterSlave = kSAI_Slave;
 
+	Config_Tx.masterSlave = kSAI_Slave;
 	Config_Tx.channelMask = kSAI_Channel0Mask;
 	Config_Tx.channelNums = 1;
 	Config_Tx.startChannel = 1;
@@ -222,7 +205,6 @@ void rtossai_i2s_common_sonfig(void)
 	SAI_TxSetConfig(I2S0,&Config_Tx);
 	SAI_TxSetBitClockPolarity(I2S0, kSAI_PolarityActiveLow);
 	SAI_TxEnable(I2S0, true);
-
 
 	SAI_GetClassicI2SConfig(&Config_Rx, kSAI_WordWidth32bits, kSAI_Stereo , kSAI_Channel0Mask);
 	Config_Rx.masterSlave = kSAI_Slave;
@@ -374,10 +356,7 @@ void wm8731_tx(uint32_t left_channel, uint32_t right_channel)
 }
 void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel)
 {
-	/*
-	 * RDR
-	 * Receive Data Register
-	 */
+	/* Configure left channel register */
 	*left_channel = I2S0->RDR[0];
 	//*right_channel = I2S0->RDR[1];
 }
@@ -394,7 +373,7 @@ static void bypass_tx(void)
 	//I2S0->TDR[0] = buffer_bypass;
 	I2S0->TDR[0] = destAddr[0];
 }
-/****************************DMA***********************************/
+/* ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ DMA ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
 /* User callback function for EDMA transfer. */
 void EDMA_Callback(edma_handle_t *handle, void *param, bool transferDone, uint32_t tcds)
@@ -421,9 +400,9 @@ void dma_init(void)
 
 void set_dma_transfer(void)
 {
-
     EDMA_SubmitTransfer(&g_EDMA_Handle, &transferConfig);
     EDMA_StartTransfer(&g_EDMA_Handle);
+
     /* Wait for EDMA transfer finish */
     while (g_Transfer_Done != true)
     {
