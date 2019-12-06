@@ -1,6 +1,15 @@
+/*!
+	\file 	  wm8731.c
+	\brief    This is file source file that contains the driver for the WM8731 Audio Codec, 
+			  implemented with Direct Memory Access (DMA).
+	\authors: Luís F. Rodríguez @LProtox
+			  César Villarreal  @4497cv
+			  Fernanda Muñoz    @Fernmu
+	\date	  06/12/2019
+*/
 
-#include "MK64F12.h"
 #include "wm8731.h"
+#include "MK64F12.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "fsl_sai.h"

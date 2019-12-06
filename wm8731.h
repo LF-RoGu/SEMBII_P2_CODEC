@@ -1,9 +1,12 @@
 /*!
- * \file      audio.h
- * \brief     Implements the audio configuration
- * \copyright ARM University Program &copy; ARM Ltd 2014.
- *
- */
+	\file 	  wm8731.h
+	\brief    This is the header file that contains the driver for the WM8731 Audio Codec, implemented
+			  with Direct Memory Access.
+	\authors: Luís F. Rodríguez @LProtox
+			  César Villarreal  @4497cv
+			  Fernanda Muñoz    @Fernmu
+	\date	  06/12/2019
+*/
 
 #ifndef wm8731_H
 #define wm8731_H
@@ -57,57 +60,86 @@
 #define Hi(param) ((char *)&param)[1]
 
 /*!
- *
+ 	 \brief		 This function intialiazes the WM8731 device
+ 	 \param[in]  uint8_t,uint8_t,uint8_t,uint8_t,void
+ 	 \return     void
  */
 void wm8731_init(uint8_t slave_address, uint8_t mode, uint8_t audio_input, uint8_t sampling_rate, void (*handler_i2s)(void));
+
 /*!
- *
+ 	 \brief		 This function configures the transmission of the WM8731.
+ 	 \param[in]  uint8_t,uint8_t,uint8_t,uint8_t,void
+ 	 \return     void
  */
 void wm8731_tx(uint32_t left_channel, uint32_t right_channel);
+
 /*!
- *
+ 	 \brief		 This function configures the reception of the WM8731.
+ 	 \param[in]  uint32_t,uint32_t
+ 	 \return     void
  */
 void wm8731_rx(uint32_t *left_channel, uint32_t *right_channel);
-/*****************************************************************/
-/*****************************************************************/
-/*****************************************************************/
+
 /*!
- *
+ 	 \brief		 This function writes a command to configure the WM8731 
+ 	 \param[in]  uint8_t,uint8_t
+ 	 \return     void
  */
 void wm8731_write_register (uint8_t reg, uint16_t data);
+
 /*!
- *
+ 	 \brief		 This function configures the i2s Tx/Rx
+ 	 \param[in]  void
+ 	 \return     void
  */
 void rtos_sai_i2s_config (void);
+
 /*!
- *
+ 	 \brief		 This function starts the WM8731 device.
+ 	 \param[in]  void
+ 	 \return     void
  */
 void wm8731_start(void);
+
 /*!
- *
+ 	 \brief		 This function configures the reception of the WM8731.
+ 	 \param[in]  void
+ 	 \return     void
  */
 void wm8732_tx_irq_enable(void);
+
 /*!
- *
+ 	 \brief		 This function enables interrupts for reception
+ 	 \param[in]  void
+ 	 \return     void
  */
 void wm8732_rx_irq_enable(void);
-/*
- * CALLBACK
- */
+
 /*!
- *
+ 	 \brief		 Rx handler function
+ 	 \param[in]  int8_t
+ 	 \return     void
  */
 void wm8731_rx_callback(void (*handler)(void));
+
 /*!
- *
+ 	 \brief		 Tx handler function
+ 	 \param[in]  void (*handler)(void))
+ 	 \return     void
  */
 void wm8731_tx_callback(void (*handler)(void));
+
 /*!
- *
+ 	 \brief		 This function initializes the DMA
+ 	 \param[in]  void
+ 	 \return     void
  */
 void dma_init(void);
+
 /*!
- *
+ 	 \brief		 This function transmits and waits until information is transferred using DMA
+ 	 \param[in]  void
+ 	 \return     void
  */
 void set_dma_transfer(void);
 #endif // wm8731_H
